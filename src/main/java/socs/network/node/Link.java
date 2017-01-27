@@ -1,22 +1,27 @@
 package socs.network.node;
 
 public class Link {
-  private RouterDescription thisRouter;
-  private RouterDescription endpointRouter;
+  private RouterDescription thisRouterDesc;
+  private RouterDescription destinationRouterDesc;
   private short linkWeight;
 
-  public Link(RouterDescription thisRouterDesc, RouterDescription endpointRouterDesc, short linkWeight) {
-    this.thisRouter = thisRouterDesc;
-    this.endpointRouter = endpointRouterDesc;
+  public Link(RouterDescription thisRouterDesc, RouterDescription destinationRouterDesc) {
+    this.thisRouterDesc = thisRouterDesc;
+    this.destinationRouterDesc = destinationRouterDesc;
+  }
+
+  public Link(RouterDescription thisRouterDesc, RouterDescription destinationRouterDesc, short linkWeight) {
+    this.thisRouterDesc = thisRouterDesc;
+    this.destinationRouterDesc = destinationRouterDesc;
     this.linkWeight = linkWeight;
   }
 
-  public RouterDescription getThisRouter() {
-    return thisRouter;
+  public RouterDescription getThisRouterDesc() {
+    return thisRouterDesc;
   }
 
-  public RouterDescription getEndpointRouter() {
-    return endpointRouter;
+  public RouterDescription getDestinationRouterDesc() {
+    return destinationRouterDesc;
   }
 
   public short getLinkWeight() {
