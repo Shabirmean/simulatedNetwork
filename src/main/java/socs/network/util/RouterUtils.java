@@ -28,7 +28,9 @@ public class RouterUtils {
     public static void releaseSocket(Socket socket){
         if (socket != null) {
             try {
-                socket.close();
+                if (!socket.isClosed()) {
+                    socket.close();
+                }
             } catch (IOException e) {
                 log.error("Error occurred when attempted to close socket.");
             }
@@ -37,6 +39,7 @@ public class RouterUtils {
 
     public static void releaseWriter(PrintWriter socketWriter){
         if (socketWriter != null) {
+            socketWriter.flush();
             socketWriter.close();
         }
     }
@@ -44,6 +47,7 @@ public class RouterUtils {
     public static void releaseWriter(ObjectOutputStream socketWriter){
         if (socketWriter != null) {
             try {
+                socketWriter.flush();
                 socketWriter.close();
             } catch (IOException e) {
                 log.error("Error occurred when attempted to close ObjectOutputStream of socket.");

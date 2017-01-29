@@ -17,16 +17,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Created by shabirmean on 2017-01-19.
  * Class for Router when acting as server.
  */
-public class RouterServer{
+public class RouterServer {
     private final Log log = LogFactory.getLog(RouterServer.class);
-    private Router myRouter;
+    private final Router myRouter;
     private ServerSocket serverSocket;
     private short serverPort;
 
-    public RouterServer(Router router) {
+    RouterServer(Router router) {
         this.myRouter = router;
     }
 
@@ -56,7 +55,7 @@ public class RouterServer{
     public void close() {
     }
 
-    public void startRouterServer(final short port) {
+    void startRouterServer(final short port) {
         final ExecutorService clientProcessingPool = Executors.newFixedThreadPool(10);
 
         Runnable serverTask = new Runnable() {
@@ -95,8 +94,7 @@ public class RouterServer{
 
         @Override
         public void run() {
-            System.out.println(">> Got a new client!");
-
+            System.out.println("Got a new client!");
             try {
                 this.socketWriter = new ObjectOutputStream(clientSocket.getOutputStream());
                 this.socketReader = new ObjectInputStream(clientSocket.getInputStream());
@@ -110,7 +108,7 @@ public class RouterServer{
                 SOSPFPacket sospfPacket = (SOSPFPacket) socketReader.readObject();
                 short messageType = sospfPacket.sospfType;
 
-                switch (messageType){
+                switch (messageType) {
                     case 0:
                         handleHelloExchange(sospfPacket);
                         break;
@@ -133,71 +131,102 @@ public class RouterServer{
 
         private void handleHelloExchange(SOSPFPacket sospfPacket) {
             String connectedSimIP = sospfPacket.srcIP;
-            int noOfExistingLinks = myRouter.getNoOfExistingLinks();
+            System.out.println(">> received HELLO from " + connectedSimIP + ";");
+            short linkIndex = myRouter.checkIfLinkExists(connectedSimIP);
+
+            try {
+                if (linkIndex == -1 && myRouter.noOfExistingLinks == RouterConstants.MAXIMUM_NO_OF_PORTS) {
+                    log.info("\nThis Router has already reached its maximum link-limit: " + RouterConstants
+                            .MAXIMUM_NO_OF_PORTS +
+                            "\nCannot add any more links.\n");
+                } else {
+                    boolean status = handleFirstHello(sospfPacket, linkIndex);
+                    if (status) {
+                        SOSPFPacket sospfPacket_2 = (SOSPFPacket) socketReader.readObject();
+                        handleSecondHello(sospfPacket_2);
+                    }
+                }
+            } catch (IOException e) {
+                log.error("An IO error occurred whilst trying to READ 2nd [SOSPFPacket] object from socket stream.");
+                myRouter.removeFromPorts(connectedSimIP);
+            } catch (ClassNotFoundException e) {
+                log.error("An object type other than [SOSPFPacket] was recieved over the socket connection", e);
+                myRouter.removeFromPorts(connectedSimIP);
+            }
+        }
+
+
+        private boolean handleFirstHello(SOSPFPacket sospfPacket, short portNumber) {
+            String connectedSimIP = sospfPacket.srcIP;
             RouterDescription myRouterDesc = myRouter.getRd();
-
-            System.out.println(">> received HELLO from " + connectedSimIP);
-
-            if (noOfExistingLinks == RouterConstants.MAXIMUM_NO_OF_PORTS) {
-                log.info("\nThis Router has already reached its maximum link-limit: " + RouterConstants
-                        .MAXIMUM_NO_OF_PORTS +
-                        "\nCannot add any more links.\n");
-            } else {
 //                -------------------------------------------------
 //                        Updates its own ports array & LSD
 //                -------------------------------------------------
-                RouterDescription newRouterDescription = new RouterDescription();
-                newRouterDescription.processIPAddress = sospfPacket.srcProcessIP;
-                newRouterDescription.processPortNumber = sospfPacket.srcProcessPort;
-                newRouterDescription.simulatedIPAddress = connectedSimIP;
-                newRouterDescription.status = RouterStatus.INIT;
+            RouterDescription newRouterDescription = new RouterDescription();
+            newRouterDescription.processIPAddress = sospfPacket.srcProcessIP;
+            newRouterDescription.processPortNumber = sospfPacket.srcProcessPort;
+            newRouterDescription.simulatedIPAddress = connectedSimIP;
+            newRouterDescription.status = RouterStatus.INIT;
 
-                Link newLink = new Link(myRouterDesc, newRouterDescription);
-                Link[] routerPorts = myRouter.getPorts();
-                routerPorts[noOfExistingLinks++] = newLink;
+            System.out.println(">> set " + connectedSimIP + " state to INIT;");
 
-                System.out.println(">> set " + connectedSimIP + " state to " + RouterStatus.INIT);
-
-                myRouter.setPorts(routerPorts);
-                myRouter.setNoOfExistingLinks(noOfExistingLinks);
-
-                LinkDescription newLinkDescription = new LinkDescription();
-                newLinkDescription.linkID = sospfPacket.neighborID;     // same as sospfPacket.srcIP
-                newLinkDescription.portNum = sospfPacket.srcProcessPort;
-                //TODO:: Need to verify what's tosMetrics is....
-                newLinkDescription.tosMetrics = 0;
-
-                LSA currentLSA = myRouter.lsd._store.get(myRouterDesc.simulatedIPAddress);
-                if (currentLSA == null) {
-                    log.error("LinkStateDatabase not initialized properly. Local router LSA entry not found.");
-                    System.exit(0);
-                }
-                currentLSA.links.add(newLinkDescription);
-                myRouter.lsd._store.put(myRouterDesc.simulatedIPAddress, currentLSA);
-
+            Link newLink = new Link(myRouterDesc, newRouterDescription);
+            if (portNumber == -1) {
+                myRouter.addToPorts(newLink);
+            } else {
+                myRouter.updatePorts(newLink, portNumber);
+            }
 //                -------------------------------------------------
 //                    Reply back with HELLO and wait for TWO_WAY
 //                -------------------------------------------------
-                SOSPFPacket sospfReplyPacket = RouterUtils.prepareHELLOPacket(myRouterDesc, newRouterDescription);
+            SOSPFPacket sospfReplyPacket = RouterUtils.prepareHELLOPacket(myRouterDesc, newRouterDescription);
 
-                try {
-                    socketWriter.writeObject(sospfReplyPacket);
-                } catch (IOException e) {
-                    log.error("An IO error occurred whilst trying to reply back [HELLO] to HOST " +
-                            "[" + connectedSimIP + "] at PORT [" + sospfPacket.srcProcessPort + "].");
-                    return;
+            try {
+                socketWriter.writeObject(sospfReplyPacket);
+            } catch (IOException e) {
+                log.error("An IO error occurred whilst trying to reply back [HELLO] to HOST " +
+                        "[" + connectedSimIP + "] at PORT [" + sospfPacket.srcProcessPort + "].");
+                myRouter.removeFromPorts(connectedSimIP);
+                return false;
+            }
+            return true;
+        }
+
+
+        private void handleSecondHello(SOSPFPacket sospfPacket_2) {
+            String connectedSimIP = sospfPacket_2.srcIP;
+            System.out.println(">> received HELLO from " + connectedSimIP + ";");
+
+            RouterDescription myRouterDesc = myRouter.getRd();
+            Link[] routerPorts;
+            int noOfExistingLinks;
+
+            routerPorts = myRouter.ports;
+            noOfExistingLinks = myRouter.noOfExistingLinks;
+
+            for (short linkIndex = 0; linkIndex < noOfExistingLinks; linkIndex++) {
+                Link oldLink = routerPorts[linkIndex];
+                RouterDescription connectingRouter = oldLink.getDestinationRouterDesc();
+
+                if (connectingRouter.simulatedIPAddress.equals(connectedSimIP)) {
+                    connectingRouter.status = RouterStatus.TWO_WAY;
+
+                    Link newLinkDesc = new Link(myRouterDesc, connectingRouter);
+                    myRouter.updatePorts(newLinkDesc, linkIndex);
+
+                    System.out.println(">> set " + connectedSimIP + " state to TWO_WAY;");
+                    break;
                 }
-
-
             }
         }
 
 
         private void handleLSUPDATE(SOSPFPacket sospfPacket) {
-
+            log.info("LSUPDATE" + sospfPacket);
         }
-    }
 
+
+    }
 
 
 }
