@@ -3,7 +3,6 @@ package socs.network.node;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import socs.network.message.LSA;
-import socs.network.message.LinkDescription;
 import socs.network.message.SOSPFPacket;
 import socs.network.util.RouterUtils;
 import socs.network.util.RouterConstants;
@@ -13,6 +12,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Vector;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -109,11 +109,11 @@ public class RouterServer {
                 short messageType = sospfPacket.sospfType;
 
                 switch (messageType) {
-                    case 0:
+                    case RouterConstants.HELLO_PACKET:
                         handleHelloExchange(sospfPacket);
                         break;
-                    case 1:
-                        handleLSUPDATE(sospfPacket);
+                    case RouterConstants.LSUPDATE_PACKET:
+                        processLSUPDATE(sospfPacket);
                         break;
                 }
 
@@ -179,7 +179,7 @@ public class RouterServer {
 //                -------------------------------------------------
 //                    Reply back with HELLO and wait for TWO_WAY
 //                -------------------------------------------------
-            SOSPFPacket sospfReplyPacket = RouterUtils.prepareHELLOPacket(myRouterDesc, newRouterDescription);
+            SOSPFPacket sospfReplyPacket = RouterUtils.preparePacket(newLink, RouterConstants.HELLO_PACKET);
 
             try {
                 socketWriter.writeObject(sospfReplyPacket);
@@ -197,35 +197,43 @@ public class RouterServer {
             String connectedSimIP = sospfPacket_2.srcIP;
             System.out.println(">> received HELLO from " + connectedSimIP + ";");
 
-            RouterDescription myRouterDesc = myRouter.getRd();
-            Link[] routerPorts;
-            int noOfExistingLinks;
+            synchronized (myRouter) {
+                Link[] routerPorts = myRouter.ports;
+                int noOfExistingLinks = myRouter.noOfExistingLinks;
 
-            routerPorts = myRouter.ports;
-            noOfExistingLinks = myRouter.noOfExistingLinks;
+                for (short linkIndex = 0; linkIndex < noOfExistingLinks; linkIndex++) {
+                    Link link = routerPorts[linkIndex];
+                    RouterDescription connectingRouter = link.getDestinationRouterDesc();
 
-            for (short linkIndex = 0; linkIndex < noOfExistingLinks; linkIndex++) {
-                Link oldLink = routerPorts[linkIndex];
-                RouterDescription connectingRouter = oldLink.getDestinationRouterDesc();
-
-                if (connectingRouter.simulatedIPAddress.equals(connectedSimIP)) {
-                    connectingRouter.status = RouterStatus.TWO_WAY;
-
-                    Link newLinkDesc = new Link(myRouterDesc, connectingRouter);
-                    myRouter.updatePorts(newLinkDesc, linkIndex);
-
-                    System.out.println(">> set " + connectedSimIP + " state to TWO_WAY;");
-                    break;
+                    if (connectingRouter.simulatedIPAddress.equals(connectedSimIP)) {
+                        connectingRouter.status = RouterStatus.TWO_WAY;
+                        System.out.println(">> set " + connectedSimIP + " state to TWO_WAY;");
+                        break;
+                    }
                 }
             }
         }
 
 
-        private void handleLSUPDATE(SOSPFPacket sospfPacket) {
-            log.info("LSUPDATE" + sospfPacket);
+        private void processLSUPDATE(SOSPFPacket sospfPacket) {
+            Vector<LSA> lsaVector = sospfPacket.lsaArray;
+            String mySimulatedIP = myRouter.getRd().simulatedIPAddress;
+
+            synchronized (myRouter) {
+                for (LSA lsa : lsaVector) {
+                    String lsaLinkID = lsa.linkStateID;
+                    if (!lsaLinkID.equals(mySimulatedIP)) {
+                        LSA oldLSA = myRouter.lsd._store.get(lsaLinkID);
+                        if (oldLSA == null || oldLSA.lsaSeqNumber < lsa.lsaSeqNumber) {
+                            myRouter.lsd._store.put(lsaLinkID, lsa);
+                        }
+                        break;
+                    }
+                }
+            }
+            System.out.println(">> updated local LinkStateDatabase;");
+            myRouter.doLSUPDATE(sospfPacket.srcIP);
         }
-
-
     }
 
 

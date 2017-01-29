@@ -4,6 +4,7 @@ package socs.network.util;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import socs.network.message.SOSPFPacket;
+import socs.network.node.Link;
 import socs.network.node.RouterDescription;
 
 import java.io.*;
@@ -12,13 +13,16 @@ import java.net.Socket;
 public class RouterUtils {
     private static final Log log = LogFactory.getLog(RouterUtils.class);
 
-    public static SOSPFPacket prepareHELLOPacket(RouterDescription rd, RouterDescription destinationRouterDesc){
+    public static SOSPFPacket preparePacket(Link link, short packetType){
+        RouterDescription rd = link.getThisRouterDesc();
+        RouterDescription destinationRouterDesc = link.getDestinationRouterDesc();
+
         SOSPFPacket sospfPacket = new SOSPFPacket();
         sospfPacket.srcProcessIP = rd.processIPAddress;
         sospfPacket.srcProcessPort = rd.processPortNumber;
         sospfPacket.srcIP = rd.simulatedIPAddress;
         sospfPacket.dstIP = destinationRouterDesc.simulatedIPAddress;
-        sospfPacket.sospfType = 0;
+        sospfPacket.sospfType = packetType;
         //TODO:: Check what routerID is
         sospfPacket.routerID = "DONT_KNOW";
         sospfPacket.neighborID = rd.simulatedIPAddress;
