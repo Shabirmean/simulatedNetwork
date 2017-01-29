@@ -115,6 +115,9 @@ public class RouterServer {
                     case RouterConstants.LSUPDATE_PACKET:
                         processLSUPDATE(sospfPacket);
                         break;
+                    case RouterConstants.EXIT_PACKET:
+                        processNodeExit(sospfPacket);
+                        break;
                 }
 
             } catch (IOException e) {
@@ -233,6 +236,12 @@ public class RouterServer {
             }
             System.out.println(">> updated local LinkStateDatabase;");
             myRouter.doLSUPDATE(sospfPacket.srcIP);
+        }
+
+        private void processNodeExit(SOSPFPacket sospfPacket) {
+            String nodeSimulatedIP = sospfPacket.srcIP;
+            myRouter.removeFromPorts(nodeSimulatedIP);
+            System.out.println(">> removed node: " + nodeSimulatedIP + " and updated local LinkStateDatabase;");
         }
     }
 

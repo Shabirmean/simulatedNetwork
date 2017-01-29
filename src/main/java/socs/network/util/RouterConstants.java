@@ -8,4 +8,5 @@ public class RouterConstants {
 
     public static final short HELLO_PACKET = 0;
     public static final short LSUPDATE_PACKET = 1;
+    public static final short EXIT_PACKET = 2;
 }
