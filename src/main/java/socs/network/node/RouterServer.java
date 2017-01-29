@@ -230,7 +230,6 @@ public class RouterServer {
                         if (oldLSA == null || oldLSA.lsaSeqNumber < lsa.lsaSeqNumber) {
                             myRouter.lsd._store.put(lsaLinkID, lsa);
                         }
-                        break;
                     }
                 }
             }

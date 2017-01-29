@@ -20,12 +20,10 @@ public class RouterUtils {
         SOSPFPacket sospfPacket = new SOSPFPacket();
         sospfPacket.srcProcessIP = rd.processIPAddress;
         sospfPacket.srcProcessPort = rd.processPortNumber;
-        sospfPacket.srcIP = rd.simulatedIPAddress;
+
+        sospfPacket.srcIP = sospfPacket.routerID = sospfPacket.neighborID = rd.simulatedIPAddress;
         sospfPacket.dstIP = destinationRouterDesc.simulatedIPAddress;
         sospfPacket.sospfType = packetType;
-        //TODO:: Check what routerID is
-        sospfPacket.routerID = "DONT_KNOW";
-        sospfPacket.neighborID = rd.simulatedIPAddress;
         return sospfPacket;
     }
 

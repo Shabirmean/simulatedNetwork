@@ -334,12 +334,10 @@ public class Router {
                             socketWriter = new ObjectOutputStream(lsupdateSocket.getOutputStream());
                             socketWriter.writeObject(sospfPacket);
 
-                            log.info("[LSUPDATE] sent to router with IP: " + simulatedIP);
+                            log.info("[LSUPDATE] sent to router with IP: " + simulatedIP + "\n>> ");
                         } catch (IOException e) {
                             log.error("[LSUPDATE] An error occurred whilst trying to READ/WRITE to Socket connection " +
-                                    "at " +
-
-                                    "HOST [" + destinationRouterHostIP + "] on " +
+                                    "at HOST [" + destinationRouterHostIP + "] on " +
                                     "PORT [" + destinationRouterHostPort + "]", e);
                         } finally {
                             RouterUtils.releaseSocket(lsupdateSocket);
