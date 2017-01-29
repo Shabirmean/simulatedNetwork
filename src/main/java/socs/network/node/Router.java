@@ -216,7 +216,15 @@ public class Router {
      * output the neighbors of the routers
      */
     private void processNeighbors() {
-
+        for (int portNo = 0; portNo < 4; portNo++) {
+            Link linkOnPort = ports[portNo];
+            if (linkOnPort != null) {
+                RouterDescription linkedRouter = linkOnPort.getDestinationRouterDesc();
+                String processIPAddress = linkedRouter.processIPAddress;
+                String simulatedIPAddress = linkedRouter.simulatedIPAddress;
+                System.out.println(">> Neighbour " + portNo + " - " + processIPAddress + " | " + simulatedIPAddress);
+            }
+        }
     }
 
     /**
