@@ -207,7 +207,7 @@ public class RouterServer {
             Vector<LSA> lsaVector = sospfPacket.lsaArray;
             String mySimulatedIP = myRouter.getRd().simulatedIPAddress;
 
-            if (!sospfPacket.routerID.equals(mySimulatedIP) || sospfPacket.timeToLive > 0) {
+            if (!sospfPacket.routerID.equals(mySimulatedIP) && sospfPacket.timeToLive > 0) {
                 synchronized (myRouter) {
                     for (LSA lsa : lsaVector) {
                         String lsaLinkID = lsa.linkStateID;
