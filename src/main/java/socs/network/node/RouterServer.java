@@ -33,28 +33,6 @@ public class RouterServer {
         return this.serverSocket;
     }
 
-    public short getServerPort() {
-        return this.serverPort;
-    }
-
-    public void bind() {
-    }
-
-    public void listen() {
-    }
-
-    public void accept() {
-    }
-
-    public void recv() {
-    }
-
-    public void send() {
-    }
-
-    public void close() {
-    }
-
     void startRouterServer(final short port) {
         final ExecutorService clientProcessingPool = Executors.newFixedThreadPool(10);
 
@@ -94,7 +72,7 @@ public class RouterServer {
 
         @Override
         public void run() {
-            System.out.println("Got a new client!");
+            prntStr("Got a new client!");
             try {
                 this.socketWriter = new ObjectOutputStream(clientSocket.getOutputStream());
                 this.socketReader = new ObjectInputStream(clientSocket.getInputStream());
@@ -134,14 +112,18 @@ public class RouterServer {
 
         private void handleHelloExchange(SOSPFPacket sospfPacket) {
             String connectedSimIP = sospfPacket.srcIP;
-            System.out.println(">> received HELLO from " + connectedSimIP + ";");
+            String packetDestIP = sospfPacket.dstIP;
+
+            prntStr(">> received HELLO from " + connectedSimIP + ";");
             short linkIndex = myRouter.checkIfLinkExists(connectedSimIP);
 
             try {
                 if (linkIndex == -1 && myRouter.noOfExistingLinks == RouterConstants.MAXIMUM_NO_OF_PORTS) {
-                    log.info("\nThis Router has already reached its maximum link-limit: " + RouterConstants
-                            .MAXIMUM_NO_OF_PORTS +
-                            "\nCannot add any more links.\n");
+                    prntStr("\n>> [WARN] This Router has already reached its maximum link-limit: " +
+                            RouterConstants.MAXIMUM_NO_OF_PORTS + "\nCannot add any more links.\n");
+                } else if (!packetDestIP.equals(myRouter.getRd().simulatedIPAddress)) {
+                    prntStr(">> [WARN] The destination IP " + packetDestIP + " of incoming HELLO packet does not " +
+                            "match mine.");
                 } else {
                     boolean status = handleFirstHello(sospfPacket, linkIndex);
                     if (status) {
@@ -171,7 +153,7 @@ public class RouterServer {
             newRouterDescription.simulatedIPAddress = connectedSimIP;
             newRouterDescription.status = RouterStatus.INIT;
 
-            System.out.println(">> set " + connectedSimIP + " state to INIT;");
+            prntStr(">> set " + connectedSimIP + " state to INIT;");
 
             Link newLink = new Link(myRouterDesc, newRouterDescription);
             if (portNumber == -1) {
@@ -198,7 +180,7 @@ public class RouterServer {
 
         private void handleSecondHello(SOSPFPacket sospfPacket_2) {
             String connectedSimIP = sospfPacket_2.srcIP;
-            System.out.println(">> received HELLO from " + connectedSimIP + ";");
+            prntStr(">> received HELLO from " + connectedSimIP + ";");
 
             synchronized (myRouter) {
                 Link[] routerPorts = myRouter.ports;
@@ -222,27 +204,33 @@ public class RouterServer {
             Vector<LSA> lsaVector = sospfPacket.lsaArray;
             String mySimulatedIP = myRouter.getRd().simulatedIPAddress;
 
-            synchronized (myRouter) {
-                for (LSA lsa : lsaVector) {
-                    String lsaLinkID = lsa.linkStateID;
-                    if (!lsaLinkID.equals(mySimulatedIP)) {
-                        LSA oldLSA = myRouter.lsd._store.get(lsaLinkID);
-                        if (oldLSA == null || oldLSA.lsaSeqNumber < lsa.lsaSeqNumber) {
-                            myRouter.lsd._store.put(lsaLinkID, lsa);
+            if (!sospfPacket.routerID.equals(mySimulatedIP)) {
+                synchronized (myRouter) {
+                    for (LSA lsa : lsaVector) {
+                        String lsaLinkID = lsa.linkStateID;
+                        if (!lsaLinkID.equals(mySimulatedIP)) {
+                            LSA oldLSA = myRouter.lsd._store.get(lsaLinkID);
+                            if (oldLSA == null || oldLSA.lsaSeqNumber < lsa.lsaSeqNumber) {
+                                myRouter.lsd._store.put(lsaLinkID, lsa);
+                            } else {
+                                lsaVector.remove(lsa);
+                            }
                         }
                     }
                 }
+                prntStr(">> updated local LinkStateDatabase;");
+                myRouter.broadcastLSUPDATE(sospfPacket.srcIP);
             }
-            System.out.println(">> updated local LinkStateDatabase;");
-            myRouter.doLSUPDATE(sospfPacket.srcIP);
         }
 
         private void processNodeExit(SOSPFPacket sospfPacket) {
             String nodeSimulatedIP = sospfPacket.srcIP;
             myRouter.removeFromPorts(nodeSimulatedIP);
-            System.out.println(">> removed node: " + nodeSimulatedIP + " and updated local LinkStateDatabase;");
+            prntStr(">> removed node: " + nodeSimulatedIP + " and updated local LinkStateDatabase;");
         }
     }
 
-
+    private void prntStr(String string) {
+        System.out.println(string);
+    }
 }
