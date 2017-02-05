@@ -9,21 +9,45 @@ import socs.network.node.RouterDescription;
 
 import java.io.*;
 import java.net.Socket;
+import java.sql.Time;
 
 public class RouterUtils {
     private static final Log log = LogFactory.getLog(RouterUtils.class);
 
-    public static SOSPFPacket preparePacket(Link link, short packetType){
-        RouterDescription rd = link.getThisRouterDesc();
-        RouterDescription destinationRouterDesc = link.getDestinationRouterDesc();
-
+    public static SOSPFPacket createNewPacket(RouterDescription rd, String dstIP, short packetType) {
         SOSPFPacket sospfPacket = new SOSPFPacket();
+
+        sospfPacket.timeToLive = RouterConstants.TIME_TO_LIVE_MILLIS;
         sospfPacket.srcProcessIP = rd.processIPAddress;
         sospfPacket.srcProcessPort = rd.processPortNumber;
+        sospfPacket.srcIP = rd.simulatedIPAddress;
 
-        sospfPacket.srcIP = sospfPacket.routerID = sospfPacket.neighborID = rd.simulatedIPAddress;
-        sospfPacket.dstIP = destinationRouterDesc.simulatedIPAddress;
+        sospfPacket.dstIP = dstIP;
         sospfPacket.sospfType = packetType;
+
+        switch (packetType) {
+            case RouterConstants.HELLO_PACKET:
+                sospfPacket.neighborID = rd.simulatedIPAddress;
+                break;
+            case RouterConstants.LSUPDATE_PACKET:
+                sospfPacket.routerID = rd.simulatedIPAddress;
+                break;
+        }
+        return sospfPacket;
+    }
+
+//    public static SOSPFPacket preparePacket(String dstIP,  SOSPFPacket sospfPacket){
+//        sospfPacket.dstIP = dstIP;
+//        return sospfPacket;
+//    }
+
+    public static SOSPFPacket updatePacket(RouterDescription rd, String dstIP, SOSPFPacket sospfPacket){
+        sospfPacket.srcProcessIP = rd.processIPAddress;
+        sospfPacket.srcProcessPort = rd.processPortNumber;
+        sospfPacket.srcIP = rd.simulatedIPAddress;
+        sospfPacket.dstIP = dstIP;
+        sospfPacket.neighborID = rd.simulatedIPAddress;
+        sospfPacket.timeToLive -= ((System.currentTimeMillis() - sospfPacket.makeTime)/1000);
         return sospfPacket;
     }
 
