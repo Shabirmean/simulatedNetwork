@@ -13,8 +13,11 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Collection;
+import java.util.Random;
 import java.util.Vector;
 import java.util.concurrent.*;
+
+import static java.lang.Thread.sleep;
 
 
 public class Router {
@@ -102,6 +105,7 @@ public class Router {
                 }
             }
 
+            //TODO:: No LSUPDATE if Hello fails
             prntStr("[LSUPDATE] Sending LSUPDATE to all connected routers.");
             Thread lsupdateThread = new Thread() {
                 public void run() {
@@ -257,6 +261,7 @@ public class Router {
      * This command does trigger the link database synchronization
      */
     private void processConnect(String processIP, short processPort, String simulatedIP, short weight) {
+        //TODO:: Should check whether a link to this router already exists.
         int linkIndex = processAttach(processIP, processPort, simulatedIP, weight);
         Future<String> exchangeState = doHELLOExchange(linkIndex);
         while (true) {
@@ -297,6 +302,7 @@ public class Router {
      * @param portNumber the port number which the link attaches at
      */
     private void processDisconnect(short portNumber) {
+        //TODO:: the other end also need to remove link
         removeFromPorts(portNumber);
         broadcastLSUPDATE();
     }

@@ -33,7 +33,7 @@ public class RouterServer {
         return this.serverSocket;
     }
 
-//    void startRouterServer(final short port) {
+    //    void startRouterServer(final short port) {
     void startRouterServer() {
         final ExecutorService clientProcessingPool = Executors.newFixedThreadPool(10);
 
@@ -100,7 +100,7 @@ public class RouterServer {
                 }
 
             } catch (IOException e) {
-                log.error("An IO error occurred whilst trying to READ [SOSPFPacket] object from socket stream.");
+                log.error("An IO error occurred whilst trying to READ [SOSPFPacket] object from socket stream.", e);
             } catch (ClassNotFoundException e) {
                 log.error("An object type other than [SOSPFPacket] was recieved over the socket connection", e);
             } finally {
