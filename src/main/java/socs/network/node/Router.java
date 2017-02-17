@@ -6,18 +6,15 @@ import socs.network.message.LSA;
 import socs.network.message.LinkDescription;
 import socs.network.message.SOSPFPacket;
 import socs.network.util.Configuration;
-import socs.network.util.RouterUtils;
 import socs.network.util.RouterConstants;
+import socs.network.util.RouterUtils;
 
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Collection;
-import java.util.Random;
 import java.util.Vector;
 import java.util.concurrent.*;
-
-import static java.lang.Thread.sleep;
 
 
 public class Router {
@@ -32,6 +29,8 @@ public class Router {
     volatile LinkStateDatabase lsd;
     volatile Link[] ports = new Link[RouterConstants.MAXIMUM_NO_OF_PORTS];
     volatile int noOfExistingLinks = 0;
+
+    boolean printFlag = false;
 
     Router(Configuration config, String ipAddress) {
         this.routerServer = new RouterServer(this);
@@ -106,7 +105,10 @@ public class Router {
             }
 
             //TODO:: No LSUPDATE if Hello fails
-            prntStr("[LSUPDATE] Sending LSUPDATE to all connected routers.");
+            if (printFlag) {
+                prntStr("[LSUPDATE] Sending LSUPDATE to all connected routers.");
+            }
+
             Thread lsupdateThread = new Thread() {
                 public void run() {
                     broadcastLSUPDATE();
@@ -193,7 +195,7 @@ public class Router {
 
     private synchronized void broadcastLSUPDATE() {
         SOSPFPacket sospfPacket = RouterUtils.createNewPacket(this.rd, "", RouterConstants.LSUPDATE_PACKET);
-
+        //TODO:: Remove self link description
         Vector<LSA> lsaVector = new Vector<>();
         Collection<LSA> lsaCollection = lsd._store.values();
         for (LSA lsa : lsaCollection) {
@@ -235,7 +237,9 @@ public class Router {
                             socketWriter = new ObjectOutputStream(lsupdateSocket.getOutputStream());
                             socketWriter.writeObject(sospfPacket);
 
-                            prntStr("[LSUPDATE] sent to router with IP: " + simulatedIP + "\n");
+                            if (printFlag) {
+                                prntStr("[LSUPDATE] sent to router with IP: " + simulatedIP + "\n");
+                            }
                         } catch (IOException e) {
                             log.error("[LSUPDATE] An error occurred whilst trying to READ/WRITE to Socket connection " +
                                     "at HOST [" + destinationRouterHostIP + "] on " +
@@ -466,6 +470,7 @@ public class Router {
             }
         }
         //TODO:: Should I remove LSA from the lsd
+        //TODO:: Do LSUPDATE when you remove or add a new node
         this.lsd._store.remove(simIPAddOfLinkDestination);
     }
 
@@ -516,10 +521,21 @@ public class Router {
                     //output neighbors
                     processNeighbors();
 
-                } else if (command.startsWith("ports")) {
+                } else if (command.equals("ports")) {
                     System.out.println("");
                     // print information about the ports
                     printPortInfo();
+
+                } else if (command.equals("topology")) {
+                    System.out.println("");
+                    // print information about the topology
+                    printTopology();
+
+                } else if (command.startsWith("debug ")) {
+                    System.out.println("");
+                    // switch on/off debug
+                    String[] cmdLine = command.split(" ");
+                    switchOnDebug(cmdLine[1]);
 
                 } else if (command.startsWith("quit")) {
                     System.out.println("");
@@ -541,6 +557,21 @@ public class Router {
             e.printStackTrace();
             System.exit(0);
         }
+    }
+
+    private void switchOnDebug(String on_off) {
+        switch(on_off){
+            case "on":
+                this.printFlag = true;
+                break;
+            case "off":
+                this.printFlag = false;
+                break;
+        }
+    }
+
+    private void printTopology() {
+        this.lsd.printLSD();
     }
 
     private void printPortInfo() {
@@ -579,6 +610,14 @@ public class Router {
 //        short port = nextFreeHostPort(RouterConstants.MIN_PORT_NUMBER, RouterConstants.MAX_PORT_NUMBER);
 //        rd.processPortNumber = port;
         this.routerServer.startRouterServer();
+//        switch(rd.simulatedIPAddress){
+//            case "192.168.1.1":
+//                processAttach("142.157.47.241", (short) 22001, "192.168.1.100", (short) 5);
+//                processAttach("142.157.47.241", (short) 22002, "192.168.2.1", (short) 6);
+//                processAttach("142.157.47.241", (short) 22003, "192.168.3.1", (short) 2);
+//                processAttach("142.157.47.241", (short) 22004, "192.168.4.1", (short) 9);
+//                break;
+//        }
     }
 
     private short nextFreeHostPort(short min, short max) {

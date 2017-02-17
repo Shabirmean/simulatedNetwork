@@ -4,7 +4,6 @@ import java.io.Serializable;
 import java.util.Vector;
 
 public class SOSPFPacket implements Serializable {
-    public long makeTime = System.currentTimeMillis();
     public long timeToLive;
     //for inter-process communication
     public String srcProcessIP;

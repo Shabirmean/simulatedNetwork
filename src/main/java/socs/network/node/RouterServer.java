@@ -3,6 +3,7 @@ package socs.network.node;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import socs.network.message.LSA;
+import socs.network.message.LinkDescription;
 import socs.network.message.SOSPFPacket;
 import socs.network.util.RouterUtils;
 import socs.network.util.RouterConstants;
@@ -12,6 +13,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.LinkedList;
 import java.util.Vector;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -203,28 +205,51 @@ public class RouterServer {
 
 
         private void processLSUPDATE(SOSPFPacket sospfPacket) {
-            prntStr("[LSUPDATE] received lsupdate from: " + sospfPacket.srcIP);
+            if (myRouter.printFlag) {
+                prntStr("[LSUPDATE] received lsupdate from: " + sospfPacket.srcIP);
+            }
+
             Vector<LSA> lsaVector = sospfPacket.lsaArray;
             String mySimulatedIP = myRouter.getRd().simulatedIPAddress;
 
-            if (!sospfPacket.routerID.equals(mySimulatedIP) && sospfPacket.timeToLive > 0) {
-                synchronized (myRouter) {
-                    for (LSA lsa : lsaVector) {
-                        String lsaLinkID = lsa.linkStateID;
-                        if (!lsaLinkID.equals(mySimulatedIP)) {
-                            LSA oldLSA = myRouter.lsd._store.get(lsaLinkID);
-                            if (oldLSA == null || oldLSA.lsaSeqNumber < lsa.lsaSeqNumber) {
-                                myRouter.lsd._store.put(lsaLinkID, lsa);
-                            } else {
-                                lsaVector.remove(lsa);
+            if (!sospfPacket.routerID.equals(mySimulatedIP)) {
+                if (sospfPacket.timeToLive > System.currentTimeMillis()) {
+                    synchronized (myRouter) {
+                        for (LSA lsa : lsaVector) {
+                            String lsaLinkID = lsa.linkStateID;
+                            if (!lsaLinkID.equals(mySimulatedIP)) {
+                                LSA oldLSA = myRouter.lsd._store.get(lsaLinkID);
+                                if (oldLSA == null || oldLSA.lsaSeqNumber < lsa.lsaSeqNumber) {
+                                    myRouter.lsd._store.put(lsaLinkID, lsa);
+
+                                    int myIndexInNewLSA = getLinkIndex(lsa.links, mySimulatedIP);
+                                    int hisIndexInMyLSA =
+                                            getLinkIndex(myRouter.lsd._store.get(mySimulatedIP).links, lsaLinkID);
+
+                                    if (myIndexInNewLSA != -1) {
+                                        int linkWeight = lsa.links.get(myIndexInNewLSA).tosMetrics;
+                                        myRouter.lsd._store.get(mySimulatedIP).
+                                                links.get(hisIndexInMyLSA).tosMetrics = linkWeight;
+                                    }
+                                }
+//                                else {
+//                                    //TODO:: Should we remove it
+//                                    lsaVector.remove(lsa);
+//                                }
                             }
                         }
                     }
+
+                    if (myRouter.printFlag) {
+                        prntStr("updated local LinkStateDatabase;");
+                    }
+                    myRouter.broadcastLSUPDATE(sospfPacket);
+
+                } else {
+                    prntStr("terminating LSUPDATE broadcast [TTL Expired]");
                 }
-                prntStr("updated local LinkStateDatabase;");
-                myRouter.broadcastLSUPDATE(sospfPacket);
             } else {
-                prntStr("terminating LSUPDATE broadcast [TTL - " + sospfPacket.timeToLive + " secs]");
+                prntStr("terminating LSUPDATE broadcast [This update packet was initiated by me]");
             }
         }
 
@@ -232,6 +257,16 @@ public class RouterServer {
             String nodeSimulatedIP = sospfPacket.srcIP;
             myRouter.removeFromPorts(nodeSimulatedIP);
             prntStr("removed node: " + nodeSimulatedIP + " and updated local LinkStateDatabase;");
+        }
+
+
+        private int getLinkIndex(LinkedList<LinkDescription> links, String ipOfRouter) {
+            for (int index = 0; index < links.size(); index++) {
+                if (links.get(index).linkID.equals(ipOfRouter)) {
+                    return index;
+                }
+            }
+            return -1;
         }
     }
 

@@ -17,7 +17,7 @@ public class RouterUtils {
     public static SOSPFPacket createNewPacket(RouterDescription rd, String dstIP, short packetType) {
         SOSPFPacket sospfPacket = new SOSPFPacket();
 
-        sospfPacket.timeToLive = RouterConstants.TIME_TO_LIVE_MILLIS;
+        sospfPacket.timeToLive = System.currentTimeMillis() + RouterConstants.TIME_TO_LIVE_MILLIS;
         sospfPacket.srcProcessIP = rd.processIPAddress;
         sospfPacket.srcProcessPort = rd.processPortNumber;
         sospfPacket.srcIP = rd.simulatedIPAddress;
@@ -47,7 +47,7 @@ public class RouterUtils {
         sospfPacket.srcIP = rd.simulatedIPAddress;
         sospfPacket.dstIP = dstIP;
         sospfPacket.neighborID = rd.simulatedIPAddress;
-        sospfPacket.timeToLive -= ((System.currentTimeMillis() - sospfPacket.makeTime)/1000);
+//        sospfPacket.timeToLive -= System.currentTimeMillis();
         return sospfPacket;
     }
 
