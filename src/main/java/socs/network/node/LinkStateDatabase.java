@@ -10,12 +10,12 @@ import java.util.Vector;
 public class LinkStateDatabase {
 
     //linkID => LSAInstance
-    HashMap<String, LSA> _store = new HashMap<String, LSA>();
+    HashMap<String, LSA> _store = new HashMap<>();
     private RouterDescription rd = null;
     // a 2d array that constructs the existing topology with the weights
     private int[][] topologyArray;
     // an index map to get the index of a node in the topology array above
-    Map<String, Integer> graphIndex;
+    private Map<String, Integer> graphIndex;
     // shortest path array constructed from Dijkstra's algorithm
     private String[][] shortestDistanceArray;
 
@@ -32,8 +32,28 @@ public class LinkStateDatabase {
      * output the shortest path from this router to the destination with the given IP address
      */
     String getShortestPath(String destinationIP) {
-        //TODO: fill the implementation here
-        return null;
+        String routeString = destinationIP;
+        String thisRouter = rd.simulatedIPAddress;
+
+        int indexOfDestination = graphIndex.get(destinationIP);
+        String predecessor = shortestDistanceArray[indexOfDestination][2];
+        int totalCost = Integer.parseInt(shortestDistanceArray[indexOfDestination][1]);
+
+        if (predecessor != null) {
+            while (!shortestDistanceArray[indexOfDestination][2].equals(thisRouter)) {
+                indexOfDestination = graphIndex.get(predecessor);
+                String newPredecessor = shortestDistanceArray[indexOfDestination][2];
+                int newCost = Integer.parseInt(shortestDistanceArray[indexOfDestination][1]);
+
+                routeString = predecessor + " ->(" + (totalCost - newCost) + ") " + routeString;
+                predecessor = newPredecessor;
+                totalCost = newCost;
+            }
+            routeString = thisRouter + " ->(" + totalCost + ") " + routeString;
+        } else {
+            routeString += " ->(0) It's the node itself";
+        }
+        return routeString;
     }
 
     //initialize the linkstate database by adding an entry about the router itself
@@ -53,7 +73,7 @@ public class LinkStateDatabase {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         for (LSA lsa : _store.values()) {
-            sb.append(lsa.linkStateID).append("(" + lsa.lsaSeqNumber + ")").append(":\t");
+            sb.append(lsa.linkStateID).append("(").append(lsa.lsaSeqNumber).append(")").append(":\t");
             for (LinkDescription ld : lsa.links) {
                 sb.append(ld.linkID).append(",").append(ld.portNum).append(",").
                         append(ld.tosMetrics).append("\t");
@@ -64,7 +84,7 @@ public class LinkStateDatabase {
     }
 
 
-    void printLSD() {
+    void updateTopologyAndRoutingTable() {
         graphIndex = new HashMap<>();
         int indexCount = 0;
 
@@ -114,25 +134,10 @@ public class LinkStateDatabase {
 
         }
 
-        // print the topology
-        for (int a = 0; a < topologyArray.length; a++) {
-            for (String keyString : graphIndex.keySet()) {
-                if (graphIndex.get(keyString) == a) {
-                    System.out.print(keyString + "    | ");
-                }
-            }
-
-            for (int b = 0; b < topologyArray.length; b++) {
-                System.out.print(topologyArray[a][b] + " | ");
-            }
-            System.out.println();
-        }
-
-        System.out.println();
         runDijkstraAlgo();
     }
 
-    void runDijkstraAlgo() {
+    private void runDijkstraAlgo() {
         shortestDistanceArray = new String[topologyArray.length][3];
         Vector<Integer> unvisitedVector = new Vector<>();
         Vector<Integer> visitedVector = new Vector<>();
@@ -190,14 +195,35 @@ public class LinkStateDatabase {
             currentIndex = graphIndex.get(shortestDistanceArray[indexOfClosestVertex][0]);
             currentArray = topologyArray[currentIndex];
         }
+    }
 
+    void printTopologyAndRoutingTable() {
+        System.out.println("==================================================");
+        System.out.println("                    TOPOLOGY                      ");
+        System.out.println("==================================================");
+        // print the topology
+        for (int a = 0; a < topologyArray.length; a++) {
+            for (String keyString : graphIndex.keySet()) {
+                if (graphIndex.get(keyString) == a) {
+                    System.out.print(keyString + "    | ");
+                }
+            }
+
+            for (int b = 0; b < topologyArray.length; b++) {
+                System.out.print(topologyArray[a][b] + " | ");
+            }
+            System.out.println();
+        }
+
+        System.out.println("==================================================");
+        System.out.println("                    ROUTING TABLE                 ");
+        System.out.println("==================================================");
+        // print the routing table
         for (String[] aShortestDistanceArray : shortestDistanceArray) {
             System.out.println(
                     aShortestDistanceArray[0] + " | " +
                             aShortestDistanceArray[1] + " | " + aShortestDistanceArray[2]);
         }
-
     }
-
 }
 

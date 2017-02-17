@@ -16,7 +16,6 @@ public class RouterUtils {
 
     public static SOSPFPacket createNewPacket(RouterDescription rd, String dstIP, short packetType) {
         SOSPFPacket sospfPacket = new SOSPFPacket();
-
         sospfPacket.timeToLive = System.currentTimeMillis() + RouterConstants.TIME_TO_LIVE_MILLIS;
         sospfPacket.srcProcessIP = rd.processIPAddress;
         sospfPacket.srcProcessPort = rd.processPortNumber;
@@ -36,22 +35,16 @@ public class RouterUtils {
         return sospfPacket;
     }
 
-//    public static SOSPFPacket preparePacket(String dstIP,  SOSPFPacket sospfPacket){
-//        sospfPacket.dstIP = dstIP;
-//        return sospfPacket;
-//    }
-
-    public static SOSPFPacket updatePacket(RouterDescription rd, String dstIP, SOSPFPacket sospfPacket){
+    public static SOSPFPacket updatePacket(RouterDescription rd, String dstIP, SOSPFPacket sospfPacket) {
         sospfPacket.srcProcessIP = rd.processIPAddress;
         sospfPacket.srcProcessPort = rd.processPortNumber;
         sospfPacket.srcIP = rd.simulatedIPAddress;
         sospfPacket.dstIP = dstIP;
         sospfPacket.neighborID = rd.simulatedIPAddress;
-//        sospfPacket.timeToLive -= System.currentTimeMillis();
         return sospfPacket;
     }
 
-    public static void releaseSocket(Socket socket){
+    public static void releaseSocket(Socket socket) {
         if (socket != null) {
             try {
                 if (!socket.isClosed()) {
@@ -63,14 +56,14 @@ public class RouterUtils {
         }
     }
 
-    public static void releaseWriter(PrintWriter socketWriter){
+    public static void releaseWriter(PrintWriter socketWriter) {
         if (socketWriter != null) {
             socketWriter.flush();
             socketWriter.close();
         }
     }
 
-    public static void releaseWriter(ObjectOutputStream socketWriter){
+    public static void releaseWriter(ObjectOutputStream socketWriter) {
         if (socketWriter != null) {
             try {
                 socketWriter.flush();
@@ -81,7 +74,7 @@ public class RouterUtils {
         }
     }
 
-    public static void releaseReader(BufferedReader socketReader){
+    public static void releaseReader(BufferedReader socketReader) {
         if (socketReader != null) {
             try {
                 socketReader.close();
@@ -92,7 +85,7 @@ public class RouterUtils {
 
     }
 
-    public static void releaseReader(ObjectInputStream socketReader){
+    public static void releaseReader(ObjectInputStream socketReader) {
         if (socketReader != null) {
             try {
                 socketReader.close();

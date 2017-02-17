@@ -25,7 +25,6 @@ public class Router {
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
 
     //assuming that all routers are with 4 ports
-    //TODO:: ports should be thread-safe Make it volatile?
     volatile LinkStateDatabase lsd;
     volatile Link[] ports = new Link[RouterConstants.MAXIMUM_NO_OF_PORTS];
     volatile int noOfExistingLinks = 0;
@@ -193,9 +192,8 @@ public class Router {
         return executor.submit(callable);
     }
 
-    private synchronized void broadcastLSUPDATE() {
+    synchronized void broadcastLSUPDATE() {
         SOSPFPacket sospfPacket = RouterUtils.createNewPacket(this.rd, "", RouterConstants.LSUPDATE_PACKET);
-        //TODO:: Remove self link description
         Vector<LSA> lsaVector = new Vector<>();
         Collection<LSA> lsaCollection = lsd._store.values();
         for (LSA lsa : lsaCollection) {
@@ -265,37 +263,43 @@ public class Router {
      * This command does trigger the link database synchronization
      */
     private void processConnect(String processIP, short processPort, String simulatedIP, short weight) {
-        //TODO:: Should check whether a link to this router already exists.
-        int linkIndex = processAttach(processIP, processPort, simulatedIP, weight);
-        Future<String> exchangeState = doHELLOExchange(linkIndex);
-        while (true) {
-            if (exchangeState.isDone()) {
-                String helloFinishedRouterIP;
-                try {
-                    helloFinishedRouterIP = exchangeState.get();
-                    if (helloFinishedRouterIP.equals(simulatedIP)) {
-                        prntStr("[HELLO EXCHANGE] completed for router with IP: " + helloFinishedRouterIP);
-                        prntStr("[LSUPDATE] Sending LSUPDATE to all connected routers.");
+        int existingLinkPortNumber = checkIfLinkExists(simulatedIP);
+        if (existingLinkPortNumber == -1) {
+            int linkIndex = processAttach(processIP, processPort, simulatedIP, weight);
+            Future<String> exchangeState = doHELLOExchange(linkIndex);
+            while (true) {
+                if (exchangeState.isDone()) {
+                    String helloFinishedRouterIP;
+                    try {
+                        helloFinishedRouterIP = exchangeState.get();
+                        if (helloFinishedRouterIP.equals(simulatedIP)) {
+                            prntStr("[HELLO EXCHANGE] completed for router with IP: " + helloFinishedRouterIP);
+                            prntStr("[LSUPDATE] Sending LSUPDATE to all connected routers.");
 
-                        Thread lsupdateThread = new Thread() {
-                            public void run() {
-                                broadcastLSUPDATE();
-                            }
-                        };
-                        lsupdateThread.start();
-                        break;
-                    } else {
-                        prntStr("[WARN] HELLO EXCHANGE to router connected to link-port [" + linkIndex + "] " +
-                                "failed. The Source IP [" + helloFinishedRouterIP + "] of the incoming message " +
-                                "is invalid. Re-run [connect] to try again");
+                            Thread lsupdateThread = new Thread() {
+                                public void run() {
+                                    broadcastLSUPDATE();
+                                }
+                            };
+                            lsupdateThread.start();
+                            break;
+                        } else {
+                            prntStr("[WARN] HELLO EXCHANGE to router connected to link-port [" + linkIndex + "] " +
+                                    "failed. The Source IP [" + helloFinishedRouterIP + "] of the incoming message " +
+                                    "is invalid. Re-run [connect] to try again");
+                        }
+
+                    } catch (InterruptedException | ExecutionException e) {
+                        log.error("An error occurred whilst trying to get the return from [HELLO EXCHANGE] to router at " +
+
+                                "PORT [" + linkIndex + "] with IP: " +
+                                this.ports[linkIndex].getDestinationRouterDesc().simulatedIPAddress, e);
                     }
-
-                } catch (InterruptedException | ExecutionException e) {
-                    log.error("An error occurred whilst trying to get the return from [HELLO EXCHANGE] to router at " +
-                            "PORT [" + linkIndex + "] with IP: " +
-                            this.ports[linkIndex].getDestinationRouterDesc().simulatedIPAddress, e);
                 }
             }
+        } else {
+            prntStr("A link to [ " + processIP + ":" + processPort + " - " + simulatedIP + " ] " +
+                    "already exists on port '" + existingLinkPortNumber + "' of this router.");
         }
     }
 
@@ -311,6 +315,7 @@ public class Router {
         broadcastLSUPDATE();
     }
 
+    //TODO::When attach other end also should show neighbours
 
     /**
      * output the shortest path to the given destination ip
@@ -320,7 +325,7 @@ public class Router {
      * @param destinationIP the ip adderss of the destination simulated router
      */
     private void processDetect(String destinationIP) {
-
+        System.out.println(this.lsd.getShortestPath(destinationIP));
     }
 
 
@@ -397,7 +402,6 @@ public class Router {
         // same as sospfPacket.srcIP
         newLinkDescription.linkID = newLink.getDestinationRouterDesc().simulatedIPAddress;
         newLinkDescription.portNum = newLink.getDestinationRouterDesc().processPortNumber;
-        //TODO:: Need to verify what's tosMetrics is....
         newLinkDescription.tosMetrics = newLink.getLinkWeight();
         addNewLinkDescriptionToLSD(newLinkDescription);
         return linkIndex;
@@ -410,7 +414,6 @@ public class Router {
         // same as sospfPacket.srcIP
         newLinkDescription.linkID = newLink.getDestinationRouterDesc().simulatedIPAddress;
         newLinkDescription.portNum = newLink.getDestinationRouterDesc().processPortNumber;
-        //TODO:: Need to verify what's tosMetrics is....
         newLinkDescription.tosMetrics = newLink.getLinkWeight();
 
         removeLinkDescriptionFromLSD(newLinkDescription.linkID);
@@ -529,9 +532,9 @@ public class Router {
                 } else if (command.equals("topology")) {
                     System.out.println("");
                     // print information about the topology
-                    printTopology();
+                    this.lsd.printTopologyAndRoutingTable();
 
-                } else if (command.startsWith("debug ")) {
+                } else if (command.startsWith("debug")) {
                     System.out.println("");
                     // switch on/off debug
                     String[] cmdLine = command.split(" ");
@@ -568,10 +571,6 @@ public class Router {
                 this.printFlag = false;
                 break;
         }
-    }
-
-    private void printTopology() {
-        this.lsd.printLSD();
     }
 
     private void printPortInfo() {

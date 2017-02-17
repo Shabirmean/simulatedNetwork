@@ -205,8 +205,9 @@ public class RouterServer {
 
 
         private void processLSUPDATE(SOSPFPacket sospfPacket) {
+            String sourceIP = sospfPacket.srcIP;
             if (myRouter.printFlag) {
-                prntStr("[LSUPDATE] received lsupdate from: " + sospfPacket.srcIP);
+                prntStr("[LSUPDATE] received lsupdate from: " + sourceIP);
             }
 
             Vector<LSA> lsaVector = sospfPacket.lsaArray;
@@ -230,12 +231,13 @@ public class RouterServer {
                                         int linkWeight = lsa.links.get(myIndexInNewLSA).tosMetrics;
                                         myRouter.lsd._store.get(mySimulatedIP).
                                                 links.get(hisIndexInMyLSA).tosMetrics = linkWeight;
+
+                                        int portNumber = myRouter.checkIfLinkExists(lsaLinkID);
+                                        if (portNumber != -1) {
+                                            myRouter.ports[portNumber].setLinkWeight((short) linkWeight);
+                                        }
                                     }
                                 }
-//                                else {
-//                                    //TODO:: Should we remove it
-//                                    lsaVector.remove(lsa);
-//                                }
                             }
                         }
                     }
@@ -243,13 +245,18 @@ public class RouterServer {
                     if (myRouter.printFlag) {
                         prntStr("updated local LinkStateDatabase;");
                     }
+                    myRouter.lsd.updateTopologyAndRoutingTable();
                     myRouter.broadcastLSUPDATE(sospfPacket);
 
                 } else {
-                    prntStr("terminating LSUPDATE broadcast [TTL Expired]");
+                    if (myRouter.printFlag) {
+                        prntStr("terminating LSUPDATE broadcast [TTL Expired]");
+                    }
                 }
             } else {
-                prntStr("terminating LSUPDATE broadcast [This update packet was initiated by me]");
+                if (myRouter.printFlag) {
+                    prntStr("terminating LSUPDATE broadcast [This update packet was initiated by me]");
+                }
             }
         }
 
@@ -257,6 +264,7 @@ public class RouterServer {
             String nodeSimulatedIP = sospfPacket.srcIP;
             myRouter.removeFromPorts(nodeSimulatedIP);
             prntStr("removed node: " + nodeSimulatedIP + " and updated local LinkStateDatabase;");
+            myRouter.broadcastLSUPDATE();
         }
 
 
