@@ -109,7 +109,6 @@ public class RouterServer {
                 RouterUtils.releaseSocket(clientSocket);
                 RouterUtils.releaseWriter(socketWriter);
                 RouterUtils.releaseReader(socketReader);
-//                System.out.print(">> ");
             }
         }
 
