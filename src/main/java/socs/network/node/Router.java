@@ -61,9 +61,11 @@ public class Router {
             newRouterDescription.simulatedIPAddress = simulatedIP;
 
             Link newLink = new Link(this.rd, newRouterDescription, weight);
+
             return addToPorts(newLink);
         }
         return -1;
+        //TODO::When attach other end also should show neighbours
     }
 
     /**
@@ -269,35 +271,37 @@ public class Router {
         int existingLinkPortNumber = checkIfLinkExists(simulatedIP);
         if (existingLinkPortNumber == -1) {
             int linkIndex = processAttach(processIP, processPort, simulatedIP, weight);
-            Future<String> exchangeState = doHELLOExchange(linkIndex);
-            while (true) {
-                if (exchangeState.isDone()) {
-                    String helloFinishedRouterIP;
-                    try {
-                        helloFinishedRouterIP = exchangeState.get();
-                        if (helloFinishedRouterIP.equals(simulatedIP)) {
-                            prntStr("[HELLO EXCHANGE] completed for router with IP: " + helloFinishedRouterIP);
-                            prntStr("[LSUPDATE] Sending LSUPDATE to all connected routers.");
 
-                            Thread lsupdateThread = new Thread() {
-                                public void run() {
-                                    broadcastLSUPDATE();
-                                }
-                            };
-                            lsupdateThread.start();
-                            break;
-                        } else {
-                            prntStr("[WARN] HELLO EXCHANGE to router connected to link-port [" + linkIndex + "] " +
-                                    "failed. The Source IP [" + helloFinishedRouterIP + "] of the incoming message " +
-                                    "is invalid. Re-run [connect] to try again");
+            // check if attach was successful, if not probably the router has reachied max-4 connections
+            if (linkIndex != -1) {
+                Future<String> exchangeState = doHELLOExchange(linkIndex);
+                while (true) {
+                    if (exchangeState.isDone()) {
+                        String helloFinishedRouterIP;
+                        try {
+                            helloFinishedRouterIP = exchangeState.get();
+                            if (helloFinishedRouterIP.equals(simulatedIP)) {
+                                prntStr("[HELLO EXCHANGE] completed for router with IP: " + helloFinishedRouterIP);
+                                prntStr("[LSUPDATE] Sending LSUPDATE to all connected routers.");
+
+                                Thread lsupdateThread = new Thread() {
+                                    public void run() {
+                                        broadcastLSUPDATE();
+                                    }
+                                };
+                                lsupdateThread.start();
+                                break;
+                            } else {
+                                prntStr("[WARN] HELLO EXCHANGE to router connected to link-port " +
+                                        "[" + linkIndex + "] failed. The Source IP [" + helloFinishedRouterIP + "] " +
+                                        "of the incoming message is invalid. Re-run [connect] to try again");
+                            }
+
+                        } catch (InterruptedException | ExecutionException e) {
+                            log.error("An error occurred whilst trying to get the return from [HELLO EXCHANGE] " +
+                                    "to router at PORT [" + linkIndex + "] with IP: " +
+                                    this.ports[linkIndex].getDestinationRouterDesc().simulatedIPAddress, e);
                         }
-
-                    } catch (InterruptedException | ExecutionException e) {
-                        log.error("An error occurred whilst trying to get the return from [HELLO EXCHANGE] to router " +
-                                "at " +
-
-                                "PORT [" + linkIndex + "] with IP: " +
-                                this.ports[linkIndex].getDestinationRouterDesc().simulatedIPAddress, e);
                     }
                 }
             }
@@ -314,7 +318,7 @@ public class Router {
      * @param portNumber the port number which the link attaches at
      */
     private void processDisconnect(short portNumber) {
-        //TODO:: the other end also need to remove link
+        //TODO:: sometimes there is an error
         Link link = ports[portNumber];
         final String simulatedIP = link.getDestinationRouterDesc().simulatedIPAddress;
         final String destinationRouterHostIP = link.getDestinationRouterDesc().processIPAddress;
@@ -328,10 +332,7 @@ public class Router {
         lsupdateThread.start();
 
         removeFromPorts(portNumber);
-        broadcastLSUPDATE();
     }
-
-    //TODO::When attach other end also should show neighbours
 
     /**
      * output the shortest path to the given destination ip
@@ -490,9 +491,8 @@ public class Router {
                 break;
             }
         }
-        //TODO:: Should I remove LSA from the lsd
-        //TODO:: Do LSUPDATE when you remove or add a new node
         this.lsd._store.remove(simIPAddOfLinkDestination);
+        broadcastLSUPDATE();
     }
 
     synchronized short checkIfLinkExists(String connectedSimIP) {
@@ -507,8 +507,7 @@ public class Router {
 
 
     private Runnable getRunnable(final String destinationRouterHostIP, final short
-            destinationRouterHostPort,
-                                 final SOSPFPacket sospfPacket, final String packetType) {
+            destinationRouterHostPort, final SOSPFPacket sospfPacket, final String packetType) {
         return new Runnable() {
             @Override
             public void run() {

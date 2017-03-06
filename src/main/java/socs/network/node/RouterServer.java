@@ -124,8 +124,8 @@ public class RouterServer {
                     prntStr("\n[WARN] This Router has already reached its maximum link-limit: " +
                             RouterConstants.MAXIMUM_NO_OF_PORTS + "\nCannot add any more links.\n");
                 } else if (!packetDestIP.equals(myRouter.getRd().simulatedIPAddress)) {
-                    prntStr("[WARN] The destination IP " + packetDestIP + " of incoming HELLO packet does not " +
-                            "match mine.");
+                    prntStr("[WARN] The destination IP " + packetDestIP + " of incoming HELLO packet " +
+                            "does not match mine.");
                 } else {
                     boolean status = handleFirstHello(sospfPacket, linkIndex);
                     if (status) {
