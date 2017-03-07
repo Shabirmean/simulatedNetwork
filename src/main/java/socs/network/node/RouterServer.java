@@ -90,6 +90,9 @@ public class RouterServer {
                 short messageType = sospfPacket.sospfType;
 
                 switch (messageType) {
+                    case RouterConstants.ATTACH_PACKET:
+                        handleAttach(sospfPacket);
+                        break;
                     case RouterConstants.HELLO_PACKET:
                         handleHelloExchange(sospfPacket);
                         break;
@@ -112,20 +115,75 @@ public class RouterServer {
             }
         }
 
+        private void handleAttach(SOSPFPacket sospfPacket) {
+            String connectedSimIP = sospfPacket.srcIP;
+            String packetDestIP = sospfPacket.dstIP;
+
+            if (myRouter.printFlag) {
+                prntStr("received an ATTACH request from " + connectedSimIP + ";");
+            }
+
+            if (!packetDestIP.equals(myRouter.getRd().simulatedIPAddress)) {
+                prntStr("[WARN] The destination IP " + packetDestIP + " of incoming HELLO packet " +
+                        "does not match mine.");
+                return;
+            }
+
+            short linkIndex = myRouter.checkIfLinkExists(connectedSimIP);
+            RouterDescription myRouterDesc = myRouter.getRd();
+            SOSPFPacket sospfReplyPacket =
+                    RouterUtils.createNewPacket(myRouterDesc, connectedSimIP, RouterConstants.ATTACH_PACKET);
+
+            try {
+                if (linkIndex != -1) {
+                    prntStr("\n[WARN] This Router already has a link to router [" + connectedSimIP + "]" +
+                            " on port [" + linkIndex + "]\n");
+
+                    sospfReplyPacket.sospfType = -1;
+                    socketWriter.writeObject(sospfReplyPacket);
+
+                } else if (myRouter.noOfExistingLinks == RouterConstants.MAXIMUM_NO_OF_PORTS) {
+                    prntStr("\n[WARN] This Router has already reached its maximum link-limit: " +
+                            RouterConstants.MAXIMUM_NO_OF_PORTS + "\nCannot add any more links.\n");
+
+                    sospfReplyPacket.sospfType = -1;
+                    socketWriter.writeObject(sospfReplyPacket);
+
+                } else {
+
+                    RouterDescription newRouterDescription = new RouterDescription();
+                    newRouterDescription.processIPAddress = sospfPacket.srcProcessIP;
+                    newRouterDescription.processPortNumber = sospfPacket.srcProcessPort;
+                    newRouterDescription.simulatedIPAddress = connectedSimIP;
+                    Link newLink = new Link(myRouterDesc, newRouterDescription);
+
+                    myRouter.addToPorts(newLink);
+                    socketWriter.writeObject(sospfReplyPacket);
+                }
+            } catch (IOException e) {
+                log.error("An IO error occurred whilst trying to reply for [ATTACH] request to HOST " +
+                        "[" + connectedSimIP + "] at PORT [" + sospfPacket.srcProcessPort + "].");
+                myRouter.removeFromPorts(connectedSimIP);
+            }
+
+        }
+
         private void handleHelloExchange(SOSPFPacket sospfPacket) {
             String connectedSimIP = sospfPacket.srcIP;
             String packetDestIP = sospfPacket.dstIP;
+
+            if (!packetDestIP.equals(myRouter.getRd().simulatedIPAddress)) {
+                prntStr("[WARN] The destination IP " + packetDestIP + " of incoming HELLO packet " +
+                        "does not match mine.");
+                return;
+            }
 
             prntStr("received HELLO from " + connectedSimIP + ";");
             short linkIndex = myRouter.checkIfLinkExists(connectedSimIP);
 
             try {
-                if (linkIndex == -1 && myRouter.noOfExistingLinks == RouterConstants.MAXIMUM_NO_OF_PORTS) {
-                    prntStr("\n[WARN] This Router has already reached its maximum link-limit: " +
-                            RouterConstants.MAXIMUM_NO_OF_PORTS + "\nCannot add any more links.\n");
-                } else if (!packetDestIP.equals(myRouter.getRd().simulatedIPAddress)) {
-                    prntStr("[WARN] The destination IP " + packetDestIP + " of incoming HELLO packet " +
-                            "does not match mine.");
+                if (linkIndex == -1) {
+                    prntStr("\n[ERROR] This router has not been properly attached to [" + connectedSimIP + "]");
                 } else {
                     boolean status = handleFirstHello(sospfPacket, linkIndex);
                     if (status) {
@@ -149,20 +207,22 @@ public class RouterServer {
 //                -------------------------------------------------
 //                        Updates its own ports array & LSD
 //                -------------------------------------------------
-            RouterDescription newRouterDescription = new RouterDescription();
-            newRouterDescription.processIPAddress = sospfPacket.srcProcessIP;
-            newRouterDescription.processPortNumber = sospfPacket.srcProcessPort;
-            newRouterDescription.simulatedIPAddress = connectedSimIP;
-            newRouterDescription.status = RouterStatus.INIT;
+//            RouterDescription newRouterDescription = new RouterDescription();
+//            newRouterDescription.processIPAddress = sospfPacket.srcProcessIP;
+//            newRouterDescription.processPortNumber = sospfPacket.srcProcessPort;
+//            newRouterDescription.simulatedIPAddress = connectedSimIP;
+//            newRouterDescription.status = RouterStatus.INIT;
+//            Link newLink = new Link(myRouterDesc, newRouterDescription);
 
+//            synchronized (myRouter) {
+            Link attachedLink = myRouter.ports[portNumber];
+            attachedLink.getDestinationRouterDesc().status = RouterStatus.INIT;
             prntStr("set " + connectedSimIP + " state to INIT;");
+//            }
 
-            Link newLink = new Link(myRouterDesc, newRouterDescription);
-            if (portNumber == -1) {
-                myRouter.addToPorts(newLink);
-            } else {
-                myRouter.updatePorts(newLink, portNumber);
-            }
+//            prntStr("set " + connectedSimIP + " state to INIT;");
+//            myRouter.updatePorts(newLink, portNumber);
+
 //                -------------------------------------------------
 //                    Reply back with HELLO and wait for TWO_WAY
 //                -------------------------------------------------

@@ -51,7 +51,7 @@ public class RouterUtils {
                     socket.close();
                 }
             } catch (IOException e) {
-                log.error("Error occurred when attempted to close socket.");
+//                log.error("Error occurred when attempted to close socket.");
             }
         }
     }
@@ -69,7 +69,7 @@ public class RouterUtils {
                 socketWriter.flush();
                 socketWriter.close();
             } catch (IOException e) {
-                log.error("Error occurred when attempted to close ObjectOutputStream of socket.");
+//                log.error("Error occurred when attempted to close ObjectOutputStream of socket.");
             }
         }
     }
@@ -79,7 +79,7 @@ public class RouterUtils {
             try {
                 socketReader.close();
             } catch (IOException e) {
-                log.error("Error occurred when attempted to close BufferedReader of socket.");
+//                log.error("Error occurred when attempted to close BufferedReader of socket.");
             }
         }
 
@@ -90,7 +90,7 @@ public class RouterUtils {
             try {
                 socketReader.close();
             } catch (IOException e) {
-                log.error("Error occurred when attempted to close ObjectInputStream of socket.");
+//                log.error("Error occurred when attempted to close ObjectInputStream of socket.");
             }
         }
 

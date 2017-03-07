@@ -10,8 +10,10 @@ public class RouterConstants {
     public static final short HELLO_PACKET = 0;
     public static final short LSUPDATE_PACKET = 1;
     public static final short EXIT_PACKET = 2;
+    public static final short ATTACH_PACKET = 3;
 
     public static final String EXIT_STRING = "EXIT";
     public static final String LSUPDATE_STRING = "LSUPDATE";
     public static final String HELLO_STRING = "HELLO";
+    public static final String ATTACH_STRING = "ATTACH";
 }
