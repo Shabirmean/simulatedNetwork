@@ -25,6 +25,7 @@ public class Router {
 
     private RouterDescription rd = new RouterDescription();
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
+    private static boolean WAS_START_CALLED = false;
 
     //assuming that all routers are with 4 ports
     volatile LinkStateDatabase lsd;
@@ -54,7 +55,7 @@ public class Router {
      */
     private int processAttach(String processIP, short processPort, String simulatedIP, short weight) {
         if (noOfExistingLinks == RouterConstants.MAXIMUM_NO_OF_PORTS) {
-            prntStr("[WARN] This Router has already reached its maximum link-limit: " +
+            prnt("[WARN] This Router has already reached its maximum link-limit: " +
                     RouterConstants.MAXIMUM_NO_OF_PORTS + "\nCannot add any more links.\n");
         } else {
             RouterDescription newRouterDescription = new RouterDescription();
@@ -85,14 +86,14 @@ public class Router {
                 socketWriter.writeObject(sospfPacket);
 
                 if (printFlag) {
-                    prntStr("A [" + packetType + "] message sent to router with IP: " + sospfPacket.dstIP);
+                    prnt("A [" + packetType + "] message sent to router with IP: " + sospfPacket.dstIP);
                 }
 
                 SOSPFPacket sospfPacket_2 = (SOSPFPacket) socketReader.readObject();
                 if (sospfPacket_2.sospfType == RouterConstants.ATTACH_PACKET) {
                     return addToPorts(newLink);
                 } else {
-                    prntStr("Attach [" + processIP + "] to this router failed.");
+                    prnt("Attach [" + processIP + "] to this router failed.");
                 }
 
             } catch (IOException e) {
@@ -110,15 +111,17 @@ public class Router {
             }
         }
         return -1;
-        //TODO::When attach other end also should show neighbours
     }
 
     /**
      * broadcast Hello to neighbors
      */
     private synchronized void processStart() {
-        Future[] arrayOfFuture = new Future[this.noOfExistingLinks];
+        if (!WAS_START_CALLED) {
+            WAS_START_CALLED = true;
+        }
 
+        Future[] arrayOfFuture = new Future[this.noOfExistingLinks];
         for (int linkIndex = 0; linkIndex < this.noOfExistingLinks; linkIndex++) {
             arrayOfFuture[linkIndex] = doHELLOExchange(linkIndex);
         }
@@ -139,9 +142,9 @@ public class Router {
                     if (arrayOfFuture[futureIndex].isDone()) {
                         final String helloFinishedRouterIP = (String) arrayOfFuture[futureIndex].get();
                         if (helloFinishedRouterIP != null && helloFinishedRouterIP.equals(routerSimIP)) {
-                            prntStr("[HELLO EXCHANGE] completed for router with IP: " + helloFinishedRouterIP);
+                            prnt("[HELLO EXCHANGE] completed for router with IP: " + helloFinishedRouterIP);
                         } else {
-                            prntStr("[WARN] HELLO to router connected to link-port [" + futureIndex + "] / IP [" +
+                            prnt("[WARN] HELLO to router connected to link-port [" + futureIndex + "] / IP [" +
                                     routerSimIP + "] failed. Run [connect] to re-connect device.");
                         }
                         portsVector.removeElement(futureIndex);
@@ -152,7 +155,7 @@ public class Router {
 
             //TODO:: No LSUPDATE if Hello fails
             if (printFlag) {
-                prntStr("[LSUPDATE] Sending LSUPDATE to all connected routers.");
+                prnt("[LSUPDATE] Sending LSUPDATE to all connected routers.");
             }
 
             Thread lsupdateThread = new Thread() {
@@ -163,9 +166,6 @@ public class Router {
             lsupdateThread.start();
 
         } catch (InterruptedException | ExecutionException e) {
-//            log.error("An error occurred whilst trying to get the return from [HELLO EXCHANGE] to router at PORT " +
-//                    "[" + futureIndex + "] with IP: " +
-//                    this.ports[futureIndex].getDestinationRouterDesc().simulatedIPAddress, e);
             log.error("An error occurred whilst trying to get the return from [HELLO EXCHANGE] to router at PORT " +
                     "[" + futureIndex + "] with IP: " +
                     this.ports[futureIndex].getDestinationRouterDesc().simulatedIPAddress);
@@ -211,17 +211,17 @@ public class Router {
                     SOSPFPacket sospfPacket_2 = (SOSPFPacket) socketReader.readObject();
                     connectedSimIP = sospfPacket_2.srcIP;
                     // TODO:: Check for message type???
-                    prntStr("received HELLO from " + connectedSimIP + ";");
+                    prnt("received HELLO from " + connectedSimIP + ";");
 
                     Link routerLink = ports[finalLinkIndex];
                     RouterDescription connectedRouterDesc = routerLink.getDestinationRouterDesc();
                     String incomingSimIP = connectedRouterDesc.simulatedIPAddress;
                     if (incomingSimIP.equals(connectedSimIP)) {
                         connectedRouterDesc.status = RouterStatus.TWO_WAY;
-                        prntStr("set " + connectedSimIP + " state to TWO_WAY;");
+                        prnt("set " + connectedSimIP + " state to TWO_WAY;");
                         socketWriter.writeObject(sospfPacket);
                     } else {
-                        prntStr("[WARN] HELLO EXCHANGE failed with router: " + incomingSimIP +
+                        prnt("[WARN] HELLO EXCHANGE failed with router: " + incomingSimIP +
                                 ". The Source IP of incoming message was: " + connectedSimIP);
                     }
                 } catch (IOException e) {
@@ -245,10 +245,23 @@ public class Router {
         return executor.submit(callable);
     }
 
+
+    private synchronized void broadcastLSUPDATE(LSA lsaOfQuitter) {
+        SOSPFPacket sospfPacket = RouterUtils.createNewPacket(this.rd, "", RouterConstants.LSUPDATE_PACKET);
+        Vector<LSA> lsaVector = new Vector<>();
+        Collection<LSA> lsaCollection = lsd._store.values();
+        for (LSA lsa : lsaCollection) {
+            lsaVector.add(lsa);
+        }
+        lsaVector.add(lsaOfQuitter);
+        sospfPacket.lsaArray = lsaVector;
+        broadcastLSUPDATE(sospfPacket);
+    }
+
     /**
      *
      */
-    synchronized void broadcastLSUPDATE() {
+    private synchronized void broadcastLSUPDATE() {
         SOSPFPacket sospfPacket = RouterUtils.createNewPacket(this.rd, "", RouterConstants.LSUPDATE_PACKET);
         Vector<LSA> lsaVector = new Vector<>();
         Collection<LSA> lsaCollection = lsd._store.values();
@@ -292,46 +305,51 @@ public class Router {
      * This command does trigger the link database synchronization
      */
     private void processConnect(String processIP, short processPort, String simulatedIP, short weight) {
-        int existingLinkPortNumber = checkIfLinkExists(simulatedIP);
-        if (existingLinkPortNumber == -1) {
-            int linkIndex = processAttach(processIP, processPort, simulatedIP, weight);
+        if (WAS_START_CALLED) {
+            int existingLinkPortNumber = checkIfLinkExists(simulatedIP);
+            if (existingLinkPortNumber == -1) {
+                int linkIndex = processAttach(processIP, processPort, simulatedIP, weight);
 
-            // check if attach was successful, if not probably the router has reached max-4 connections
-            if (linkIndex != -1) {
-                Future<String> exchangeState = doHELLOExchange(linkIndex);
-                while (true) {
-                    if (exchangeState.isDone()) {
-                        String helloFinishedRouterIP;
-                        try {
-                            helloFinishedRouterIP = exchangeState.get();
-                            if (helloFinishedRouterIP.equals(simulatedIP)) {
-                                prntStr("[HELLO EXCHANGE] completed for router with IP: " + helloFinishedRouterIP);
-                                prntStr("[LSUPDATE] Sending LSUPDATE to all connected routers.");
+                // check if attach was successful, if not probably the router has reached max-4 connections
+                if (linkIndex != -1) {
+                    Future<String> exchangeState = doHELLOExchange(linkIndex);
+                    while (true) {
+                        if (exchangeState.isDone()) {
+                            String helloFinishedRouterIP;
+                            try {
+                                helloFinishedRouterIP = exchangeState.get();
+                                if (helloFinishedRouterIP.equals(simulatedIP)) {
+                                    prnt("[HELLO EXCHANGE] completed for router with IP: " + helloFinishedRouterIP);
+                                    prnt("[LSUPDATE] Sending LSUPDATE to all connected routers.");
 
-                                Thread lsupdateThread = new Thread() {
-                                    public void run() {
-                                        broadcastLSUPDATE();
-                                    }
-                                };
-                                lsupdateThread.start();
-                                break;
-                            } else {
-                                prntStr("[WARN] HELLO EXCHANGE to router connected to link-port " +
-                                        "[" + linkIndex + "] failed. The Source IP [" + helloFinishedRouterIP + "] " +
-                                        "of the incoming message is invalid. Re-run [connect] to try again");
+                                    Thread lsupdateThread = new Thread() {
+                                        public void run() {
+                                            broadcastLSUPDATE();
+                                        }
+                                    };
+                                    lsupdateThread.start();
+                                    break;
+                                } else {
+                                    prnt("[WARN] HELLO EXCHANGE to router connected to link-port " +
+                                            "[" + linkIndex + "] failed. The Source IP [" + helloFinishedRouterIP +
+                                            "] " +
+                                            "of the incoming message is invalid. Re-run [connect] to try again");
+                                }
+
+                            } catch (InterruptedException | ExecutionException e) {
+                                log.error("An error occurred whilst trying to get the return from [HELLO EXCHANGE] " +
+                                        "to router at PORT [" + linkIndex + "] with IP: " +
+                                        this.ports[linkIndex].getDestinationRouterDesc().simulatedIPAddress, e);
                             }
-
-                        } catch (InterruptedException | ExecutionException e) {
-                            log.error("An error occurred whilst trying to get the return from [HELLO EXCHANGE] " +
-                                    "to router at PORT [" + linkIndex + "] with IP: " +
-                                    this.ports[linkIndex].getDestinationRouterDesc().simulatedIPAddress, e);
                         }
                     }
                 }
+            } else {
+                prnt("A link to [ " + processIP + ":" + processPort + " - " + simulatedIP + " ] " +
+                        "already exists on port '" + existingLinkPortNumber + "' of this router.");
             }
         } else {
-            prntStr("A link to [ " + processIP + ":" + processPort + " - " + simulatedIP + " ] " +
-                    "already exists on port '" + existingLinkPortNumber + "' of this router.");
+            prnt("[ATTACH] & [START] needs to be called before [CONNECT] is called.");
         }
     }
 
@@ -350,12 +368,13 @@ public class Router {
         final SOSPFPacket sospfPacket =
                 RouterUtils.createNewPacket(this.rd, simulatedIP, RouterConstants.EXIT_PACKET);
 
-        Runnable lsupdateRunnable = getRunnable(
+        Runnable disconnectRunnable = getRunnable(
                 destinationRouterHostIP, destinationRouterHostPort, sospfPacket, RouterConstants.EXIT_STRING);
-        Thread lsupdateThread = new Thread(lsupdateRunnable);
-        lsupdateThread.start();
+        Thread disconnectTriggerThread = new Thread(disconnectRunnable);
+        disconnectTriggerThread.start();
 
         removeFromPorts(portNumber);
+//        broadcastLSUPDATE();
     }
 
     /**
@@ -379,7 +398,7 @@ public class Router {
             if (linkOnPort != null) {
                 RouterDescription linkedRouter = linkOnPort.getDestinationRouterDesc();
                 String simulatedIPAddress = linkedRouter.simulatedIPAddress;
-                prntStr("Neighbour " + portNo + " - " + simulatedIPAddress);
+                prnt("Neighbour " + portNo + " - " + simulatedIPAddress);
             }
         }
     }
@@ -388,6 +407,7 @@ public class Router {
      * disconnect with all neighbors and quit the program
      */
     private void processQuit() {
+        Thread[] quitThreadArray = new Thread[noOfExistingLinks];
         for (short linkIndex = 0; linkIndex < noOfExistingLinks; linkIndex++) {
             Link link = ports[linkIndex];
             final String simulatedIP = link.getDestinationRouterDesc().simulatedIPAddress;
@@ -396,10 +416,20 @@ public class Router {
             final SOSPFPacket sospfPacket =
                     RouterUtils.createNewPacket(this.rd, simulatedIP, RouterConstants.EXIT_PACKET);
 
-            Runnable lsupdateRunnable = getRunnable(
+            Runnable quitRunnable = getRunnable(
                     destinationRouterHostIP, destinationRouterHostPort, sospfPacket, RouterConstants.EXIT_STRING);
-            Thread lsupdateThread = new Thread(lsupdateRunnable);
-            lsupdateThread.start();
+            Thread quitTriggerThread = new Thread(quitRunnable);
+            quitTriggerThread.setDaemon(true);
+            quitTriggerThread.start();
+            quitThreadArray[linkIndex] = quitTriggerThread;
+        }
+
+        try {
+            for (Thread quitThread : quitThreadArray) {
+                quitThread.join();
+            }
+        } catch (InterruptedException e) {
+            prnt("[QUIT] An error occurred whilst waiting for a Quit Thread to complete.");
         }
 
         executor.shutdown();
@@ -411,6 +441,10 @@ public class Router {
      * @return
      */
     synchronized int addToPorts(Link newLink) {
+        if (!WAS_START_CALLED) {
+            WAS_START_CALLED = true;
+        }
+
         int linkIndex = noOfExistingLinks;
         this.ports[noOfExistingLinks++] = newLink;
 
@@ -469,7 +503,7 @@ public class Router {
                 }
 
                 removeLinkDescriptionFromLSD(linkToRemove.getDestinationRouterDesc().simulatedIPAddress);
-                prntStr("Link on port " + portToDetach + " was successfully detached.");
+                prnt("Link on port " + portToDetach + " was successfully detached.");
 
             } else {
                 log.error("Link-port [" + portToDetach + "] does not have any device attached to it.");
@@ -504,8 +538,10 @@ public class Router {
                 break;
             }
         }
-        this.lsd._store.remove(simIPAddOfLinkDestination);
-        broadcastLSUPDATE();
+        LSA lsaOfQuitter = this.lsd._store.remove(simIPAddOfLinkDestination);
+        lsaOfQuitter.hasQuitNetwork = true;
+        lsaOfQuitter.lsaSeqNumber++;
+        broadcastLSUPDATE(lsaOfQuitter);
     }
 
     /**
@@ -555,7 +591,7 @@ public class Router {
                     socketWriter.writeObject(sospfPacket);
 
                     if (printFlag) {
-                        prntStr("A [" + packetType + "] message sent to router with IP: " + sospfPacket.dstIP);
+                        prnt("A [" + packetType + "] message sent to router with IP: " + sospfPacket.dstIP);
                     }
                 } catch (IOException e) {
 //                    log.error("[" + packetType + "] An error occurred whilst trying to READ/WRITE to Socket " +
@@ -629,6 +665,10 @@ public class Router {
                     System.out.println("");
                     processQuit();
 
+                } else if (command.startsWith("lsd")) {
+                    System.out.println("");
+                    printLSD();
+
                 } else {
                     System.out.println("Invalid Command.");
                     //invalid command
@@ -644,6 +684,32 @@ public class Router {
         } catch (Exception e) {
             e.printStackTrace();
             System.exit(0);
+        }
+    }
+
+    /**
+     *
+     */
+    void startServer() {
+//        short port = nextFreeHostPort(RouterConstants.MIN_PORT_NUMBER, RouterConstants.MAX_PORT_NUMBER);
+//        rd.processPortNumber = port;
+        this.routerServer.startRouterServer();
+    }
+
+
+    private void printLSD() {
+        for (String lsaEntry : this.lsd._store.keySet()) {
+            LSA lsa = this.lsd._store.get(lsaEntry);
+            System.out.println("--------------------------------------------------");
+            System.out.println("       RouterIP      :   " + lsaEntry);
+            System.out.println("       OriginatorIP  :   " + lsa.linkStateID);
+            System.out.println("..................................................");
+
+            for (LinkDescription linkDes : lsa.links) {
+                System.out.println("LinkID [" + linkDes.linkID + "] - " +
+                        "Port [" + linkDes.portNum + "] - WEIGHT [" + linkDes.tosMetrics + "]");
+            }
+            System.out.println("--------------------------------------------------");
         }
     }
 
@@ -697,15 +763,6 @@ public class Router {
     }
 
     /**
-     *
-     */
-    void startServer() {
-//        short port = nextFreeHostPort(RouterConstants.MIN_PORT_NUMBER, RouterConstants.MAX_PORT_NUMBER);
-//        rd.processPortNumber = port;
-        this.routerServer.startRouterServer();
-    }
-
-    /**
      * @param min
      * @param max
      * @return
@@ -737,7 +794,7 @@ public class Router {
     /**
      * @param string
      */
-    private void prntStr(String string) {
+    private void prnt(String string) {
         System.out.println(string);
     }
 }

@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Vector;
 
 public class LinkStateDatabase {
-
     //linkID => LSAInstance
     HashMap<String, LSA> _store = new HashMap<>();
     private RouterDescription rd = null;
@@ -35,6 +34,10 @@ public class LinkStateDatabase {
     String getShortestPath(String destinationIP) {
         String routeString = destinationIP;
         String thisRouter = rd.simulatedIPAddress;
+
+        if (!graphIndex.containsKey(destinationIP)) {
+            return "No router with IP [" + destinationIP + "] exists in network";
+        }
 
         int indexOfDestination = graphIndex.get(destinationIP);
         String predecessor = shortestDistanceArray[indexOfDestination][2];
@@ -134,7 +137,6 @@ public class LinkStateDatabase {
             }
 
         }
-
         runDijkstraAlgo();
     }
 

@@ -37,7 +37,7 @@ public class RouterServer {
 
     //    void startRouterServer(final short port) {
     void startRouterServer() {
-        final ExecutorService clientProcessingPool = Executors.newFixedThreadPool(10);
+        final ExecutorService clientProcessingPool = Executors.newFixedThreadPool(100);
 
         Runnable serverTask = new Runnable() {
             @Override
@@ -75,7 +75,6 @@ public class RouterServer {
 
         @Override
         public void run() {
-//            prntStr("Got a new client!");
             try {
                 this.socketWriter = new ObjectOutputStream(clientSocket.getOutputStream());
                 this.socketReader = new ObjectInputStream(clientSocket.getInputStream());
@@ -280,20 +279,24 @@ public class RouterServer {
                             if (!lsaLinkID.equals(mySimulatedIP)) {
                                 LSA oldLSA = myRouter.lsd._store.get(lsaLinkID);
                                 if (oldLSA == null || oldLSA.lsaSeqNumber < lsa.lsaSeqNumber) {
-                                    myRouter.lsd._store.put(lsaLinkID, lsa);
+                                    if (lsa.hasQuitNetwork) {
+                                        myRouter.lsd._store.remove(lsaLinkID);
+                                    } else {
+                                        myRouter.lsd._store.put(lsaLinkID, lsa);
 
-                                    int myIndexInNewLSA = getLinkIndex(lsa.links, mySimulatedIP);
-                                    int hisIndexInMyLSA =
-                                            getLinkIndex(myRouter.lsd._store.get(mySimulatedIP).links, lsaLinkID);
+                                        int myIndexInNewLSA = getLinkIndex(lsa.links, mySimulatedIP);
+                                        int hisIndexInMyLSA =
+                                                getLinkIndex(myRouter.lsd._store.get(mySimulatedIP).links, lsaLinkID);
 
-                                    if (myIndexInNewLSA != -1) {
-                                        int linkWeight = lsa.links.get(myIndexInNewLSA).tosMetrics;
-                                        myRouter.lsd._store.get(mySimulatedIP).
-                                                links.get(hisIndexInMyLSA).tosMetrics = linkWeight;
+                                        if (myIndexInNewLSA != -1) {
+                                            int linkWeight = lsa.links.get(myIndexInNewLSA).tosMetrics;
+                                            myRouter.lsd._store.get(mySimulatedIP).
+                                                    links.get(hisIndexInMyLSA).tosMetrics = linkWeight;
 
-                                        int portNumber = myRouter.checkIfLinkExists(lsaLinkID);
-                                        if (portNumber != -1) {
-                                            myRouter.ports[portNumber].setLinkWeight((short) linkWeight);
+                                            int portNumber = myRouter.checkIfLinkExists(lsaLinkID);
+                                            if (portNumber != -1) {
+                                                myRouter.ports[portNumber].setLinkWeight((short) linkWeight);
+                                            }
                                         }
                                     }
                                 }
@@ -323,7 +326,7 @@ public class RouterServer {
             String nodeSimulatedIP = sospfPacket.srcIP;
             myRouter.removeFromPorts(nodeSimulatedIP);
             prntStr("removed node: " + nodeSimulatedIP + " and updated local LinkStateDatabase;");
-            myRouter.broadcastLSUPDATE();
+//            myRouter.broadcastLSUPDATE();
         }
 
 
