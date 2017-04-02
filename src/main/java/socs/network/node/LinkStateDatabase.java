@@ -55,7 +55,11 @@ public class LinkStateDatabase {
             }
             routeString = thisRouter + " ->(" + totalCost + ") " + routeString;
         } else {
-            routeString += " ->(0) It's the node itself";
+            if (totalCost == 0) {
+                routeString += " ->(0) It's the node itself";
+            } else {
+                routeString += " ->(NULL) A path does not exist";
+            }
         }
         return routeString;
     }

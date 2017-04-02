@@ -366,14 +366,14 @@ public class Router {
         final String destinationRouterHostIP = link.getDestinationRouterDesc().processIPAddress;
         final short destinationRouterHostPort = link.getDestinationRouterDesc().processPortNumber;
         final SOSPFPacket sospfPacket =
-                RouterUtils.createNewPacket(this.rd, simulatedIP, RouterConstants.EXIT_PACKET);
+                RouterUtils.createNewPacket(this.rd, simulatedIP, RouterConstants.DISCONNECT_PACKET);
 
         Runnable disconnectRunnable = getRunnable(
-                destinationRouterHostIP, destinationRouterHostPort, sospfPacket, RouterConstants.EXIT_STRING);
+                destinationRouterHostIP, destinationRouterHostPort, sospfPacket, RouterConstants.DISCONNECT_STRING);
         Thread disconnectTriggerThread = new Thread(disconnectRunnable);
         disconnectTriggerThread.start();
 
-        removeFromPorts(portNumber);
+        removeFromPorts(portNumber, !(RouterConstants.QUITTER));
 //        broadcastLSUPDATE();
     }
 
@@ -470,19 +470,19 @@ public class Router {
         newLinkDescription.portNum = newLink.getDestinationRouterDesc().processPortNumber;
         newLinkDescription.tosMetrics = newLink.getLinkWeight();
 
-        removeLinkDescriptionFromLSD(newLinkDescription.linkID);
+        removeLinkDescriptionFromLSD(newLinkDescription.linkID, false);
         addNewLinkDescriptionToLSD(newLinkDescription);
     }
 
     /**
      * @param connectedSimIP
      */
-    synchronized void removeFromPorts(String connectedSimIP) {
+    synchronized void removeFromPorts(String connectedSimIP, boolean isQuitter) {
         short portIndex = checkIfLinkExists(connectedSimIP);
         if (portIndex != -1) {
             Link link = ports[portIndex];
             if (link.getDestinationRouterDesc().simulatedIPAddress.equals(connectedSimIP)) {
-                removeFromPorts(portIndex);
+                removeFromPorts(portIndex, isQuitter);
             }
         }
     }
@@ -490,7 +490,7 @@ public class Router {
     /**
      * @param portToDetach
      */
-    private synchronized void removeFromPorts(short portToDetach) {
+    private synchronized void removeFromPorts(short portToDetach, boolean isQuitter) {
         if (portToDetach < 4) {
             Link linkToRemove = ports[portToDetach];
             if (linkToRemove != null) {
@@ -502,7 +502,7 @@ public class Router {
                     ports[pos + 1] = null;
                 }
 
-                removeLinkDescriptionFromLSD(linkToRemove.getDestinationRouterDesc().simulatedIPAddress);
+                removeLinkDescriptionFromLSD(linkToRemove.getDestinationRouterDesc().simulatedIPAddress, isQuitter);
                 prnt("Link on port " + portToDetach + " was successfully detached.");
 
             } else {
@@ -529,7 +529,7 @@ public class Router {
     /**
      * @param simIPAddOfLinkDestination
      */
-    private synchronized void removeLinkDescriptionFromLSD(String simIPAddOfLinkDestination) {
+    private synchronized void removeLinkDescriptionFromLSD(String simIPAddOfLinkDestination, boolean isQuitter) {
         LSA currentLSA = this.lsd._store.get(rd.simulatedIPAddress);
         for (LinkDescription linkDesc : currentLSA.links) {
             if (linkDesc.linkID.equals(simIPAddOfLinkDestination)) {
@@ -538,10 +538,15 @@ public class Router {
                 break;
             }
         }
-        LSA lsaOfQuitter = this.lsd._store.remove(simIPAddOfLinkDestination);
-        lsaOfQuitter.hasQuitNetwork = true;
-        lsaOfQuitter.lsaSeqNumber++;
-        broadcastLSUPDATE(lsaOfQuitter);
+
+        LSA lsaOfRemovedDevice = this.lsd._store.remove(simIPAddOfLinkDestination);
+        if (isQuitter) {
+            lsaOfRemovedDevice.hasQuitNetwork = true;
+            lsaOfRemovedDevice.lsaSeqNumber++;
+            broadcastLSUPDATE(lsaOfRemovedDevice);
+        } else {
+            broadcastLSUPDATE();
+        }
     }
 
     /**
@@ -577,12 +582,9 @@ public class Router {
                 try {
                     aNewSocket = new Socket(destinationRouterHostIP, destinationRouterHostPort);
                 } catch (IOException e) {
-//                    log.error("[" + packetType + "] An error occurred whilst trying to establish Socket " +
-//                            "connection to HOST [" + destinationRouterHostIP + "] at " +
-//                            "PORT [" + destinationRouterHostPort + "]", e);
                     log.error("[" + packetType + "] An error occurred whilst trying to establish Socket " +
                             "connection to HOST [" + destinationRouterHostIP + "] at " +
-                            "PORT [" + destinationRouterHostPort + "]");
+                            "PORT [" + destinationRouterHostPort + "]", e);
                     return;
                 }
 
@@ -594,9 +596,9 @@ public class Router {
                         prnt("A [" + packetType + "] message sent to router with IP: " + sospfPacket.dstIP);
                     }
                 } catch (IOException e) {
-//                    log.error("[" + packetType + "] An error occurred whilst trying to READ/WRITE to Socket " +
-//                            "connection at HOST [" + destinationRouterHostIP + "] on " +
-//                            "PORT [" + destinationRouterHostPort + "]", e);
+                    log.error("[" + packetType + "] An error occurred whilst trying to READ/WRITE to Socket " +
+                            "connection at HOST [" + destinationRouterHostIP + "] on " +
+                            "PORT [" + destinationRouterHostPort + "]", e);
                 } finally {
                     RouterUtils.releaseSocket(aNewSocket);
                     RouterUtils.releaseWriter(socketWriter);
