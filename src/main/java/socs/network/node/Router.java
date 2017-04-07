@@ -261,7 +261,7 @@ public class Router {
     /**
      *
      */
-    private synchronized void broadcastLSUPDATE() {
+    synchronized void broadcastLSUPDATE() {
         SOSPFPacket sospfPacket = RouterUtils.createNewPacket(this.rd, "", RouterConstants.LSUPDATE_PACKET);
         Vector<LSA> lsaVector = new Vector<>();
         Collection<LSA> lsaCollection = lsd._store.values();

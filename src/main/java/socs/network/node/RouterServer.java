@@ -253,6 +253,7 @@ class RouterServer {
                         // invoke method to handle second HELLO message.
                         SOSPFPacket sospfPacket_2 = (SOSPFPacket) socketReader.readObject();
                         handleSecondHello(sospfPacket_2);
+                        myRouter.broadcastLSUPDATE();
                     }
                 }
             } catch (IOException e) {
