@@ -277,12 +277,35 @@ class RouterServer {
         private boolean handleFirstHello(SOSPFPacket sospfPacket, short portNumber) {
             String connectedSimIP = sospfPacket.srcIP;
             RouterDescription myRouterDesc = myRouter.getRd();
+            String mySimulatedIP = myRouterDesc.simulatedIPAddress;
 
             Link attachedLink = myRouter.ports[portNumber];
 
             // set status of the calling router to "INIT".
             attachedLink.getDestinationRouterDesc().status = RouterStatus.INIT;
             prntStr("set " + connectedSimIP + " state to INIT;");
+
+            int linkWeight = 0;
+            for (LSA lsaOfConnectingRouter : sospfPacket.lsaArray) {
+                String ipOfLSA = lsaOfConnectingRouter.linkStateID;
+                if (ipOfLSA.equals(connectedSimIP)) {
+                    for (LinkDescription linkDes : lsaOfConnectingRouter.links) {
+                        if (linkDes.linkID.equals(mySimulatedIP)) {
+                            linkWeight = linkDes.tosMetrics;
+                        }
+                    }
+
+                    synchronized (myRouter){
+                        LSA myLSA = myRouter.lsd._store.get(mySimulatedIP);
+                        for (LinkDescription linkDes : myLSA.links) {
+                            if (linkDes.linkID.equals(connectedSimIP)) {
+                                linkDes.tosMetrics = linkWeight;
+                            }
+                        }
+                        attachedLink.setLinkWeight((short) linkWeight);
+                    }
+                }
+            }
 
             // reply with a HELLO message.
             SOSPFPacket sospfReplyPacket =

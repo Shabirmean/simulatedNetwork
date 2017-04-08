@@ -185,6 +185,9 @@ public class Router {
         final SOSPFPacket sospfPacket =
                 RouterUtils.createNewPacket(
                         this.rd, destinationRouterDesc.simulatedIPAddress, RouterConstants.HELLO_PACKET);
+        Vector<LSA> lsaVector = new Vector<>();
+        lsaVector.add(this.lsd._store.get(rd.simulatedIPAddress));
+        sospfPacket.lsaArray = lsaVector;
 
         Callable<String> callable = new Callable<String>() {
             @Override
@@ -192,7 +195,7 @@ public class Router {
                 Socket helloTransferSocket;
                 ObjectOutputStream socketWriter = null;
                 ObjectInputStream socketReader = null;
-                String connectedSimIP = null;
+                String connectedSimIP;
 
                 try {
                     helloTransferSocket = new Socket(destinationRouterHostIP, destinationRouterHostPort);
