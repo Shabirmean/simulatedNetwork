@@ -1,6 +1,8 @@
 # Simulated Network
 
-The source can be build and run in several terminal windows to initiate multiple router instances. The program requires a configuration file as an argument.
+The program is intended to create and experiment with networks involving multiple routers. It demonstrates how the Link State Updates happen between routers to maintain the topoology discovery requirment of all the router in the network.
+
+The source can be build and run in several terminal windows to initiate multiple router instances. The program requires a configuration file as an argument. 
 
 Sample configuration file can be found at inside the [conf](https://github.com/Shabirmean/simulatedNetwork/blob/master/conf/router1.conf) directory. The program expects two specific configs from the configuration file:
 ```configuration
